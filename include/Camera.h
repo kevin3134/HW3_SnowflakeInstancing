@@ -4,6 +4,7 @@
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/io.hpp>
 
 #include <vector>
 
@@ -19,7 +20,7 @@ enum Camera_Movement {
 // Default camera values
 const float YAW        = -90.0f;
 const float PITCH      =  0.0f;
-const float SPEED      =  2.5f;
+const float SPEED      =  6.0f;
 const float SENSITIVTY =  0.1f;
 const float ZOOM       =  45.0f;
 
@@ -128,6 +129,15 @@ public:
             Zoom = 1.0f;
         if (Zoom >= 45.0f)
             Zoom = 45.0f;
+    }
+
+
+    void debug_printPosition(){
+        std::cout<< "camera position: " << Position <<std::endl;
+    }
+
+    void debug_printFront(){
+        std::cout<< "camera Front: " << Front <<std::endl;
     }
 
 private:
