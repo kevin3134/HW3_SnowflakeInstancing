@@ -155,6 +155,8 @@ private:
         // the more you look up or down which results in slower movement.
         Right = glm::normalize(glm::cross(Front, WorldUp));
         Up    = glm::normalize(glm::cross(Right, Front));
+        // Up = WorldUp;
+        // Right = glm::normalize(glm::cross(Front, Up));
     }
 };
 
