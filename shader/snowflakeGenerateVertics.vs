@@ -18,5 +18,5 @@ void main()
 {
     vec3 tempPostion = position + offset + sizeScale * verticeOffset.x * u + sizeScale * verticeOffset.y * v;
     gl_Position = projection * view * model * vec4(tempPostion, 1.0);
-    TexCoord = vec2(aTexCoord.x, aTexCoord.y);
+    TexCoord = aTexCoord;
 }

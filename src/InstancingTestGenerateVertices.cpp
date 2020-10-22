@@ -3,7 +3,7 @@
  * cd build 
  * cmake -G "Unix Makefiles" ../    (to avoid using VS gcc generater in windows)
  * make
- * .\snowflakeInstancing.exe
+ * .\InstancingTestGenerateVertices.exe
  * 
  * */
 #include <iostream>
@@ -15,7 +15,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/io.hpp>
-
 
 // GLAD: A library that wraps OpenGL functions to make things easier
 //       Note that GLAD MUST be included before GLFW
@@ -42,11 +41,12 @@ void scrollCallback(GLFWwindow *window, double offsetX, double offsetY);
 
 
 // **********GLFW window related attributes**********
-int gScreenWidth = 800;
-int gScreenHeight = 600;
+int gScreenWidth = 1200;
+int gScreenHeight = 800;
 float gDeltaTime = 0.0f;
 float gLastFrame = 0.0f;
-GLfloat pi_half = 3.1415 / 2;
+int translationRowCount = 10;
+int translationSize = translationRowCount * translationRowCount * translationRowCount;
 
 Camera gCamera;
 
@@ -57,7 +57,7 @@ int main()
         std::cout << "Failed to initialize GLFW and OpenGL!" << std::endl;
         return -1;
     }
-    // add skybox and its shader
+
     std::vector<std::string> skyboxPaths = {
             "../texture/Sunset/SunsetLeft2048.png",
             "../texture/Sunset/SunsetRight2048.png",
@@ -66,34 +66,32 @@ int main()
             "../texture/Sunset/SunsetFront2048.png",
             "../texture/Sunset/SunsetBack2048.png",
     };
-
-    std::string snowflakePath = "../resource/snowflake1.png";
-
     Shader skyboxShader("../shader/background.vs", "../shader/background.fs");
     Skybox skybox(skyboxPaths);
 
+    std::string snowflakePath = "../resource/bubble.png";
     Shader snowShader("../shader/snowflakeGenerateVertics.vs", "../shader/snowflakeWithTexture.fs");
     Texture snowTexture(&snowflakePath[0]);
-    
 
-
-    int translationRowCount = 10;
-    int translationSize = translationRowCount * translationRowCount * translationRowCount;
+    //generate translation and translationspeed metric
+    //translation used for instancing
+    //translationspeed used for animation of these instances
     glm::vec3 translations[translationSize];
-
     genTranslation(translationRowCount, translations);
 
+    glm::vec3 translationsSpeed[translationSize];
+    genTranslationSpeed(translationRowCount, 5.0f, translationsSpeed);
 
     //Store instance data in an array buffer
     GLuint instanceVBO;
     glGenBuffers(1, &instanceVBO);
     glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * translationSize, &translations[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * translationSize, &translations[0], GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    //generate single snowflake attributes
     SnowflakePlane plane;
     setSnowflakePlane(0.5f, &plane);
-
 
     // Setup plane VAO
     GLuint planeVAO, planeVBO;
@@ -102,27 +100,23 @@ int main()
     glBindVertexArray(planeVAO);
     glBindBuffer(GL_ARRAY_BUFFER, planeVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(plane.planeVertices), &plane.planeVertices, GL_STATIC_DRAW);
+
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(GLfloat), (GLvoid*)0);
 
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
 
-    // texture coord attribute
     glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(5 * sizeof(float)));
     glEnableVertexAttribArray(3);
 
-    // Also set instance data
     glEnableVertexAttribArray(2);
     glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);	
     glVertexAttribDivisor(2, 1); // Tell OpenGL this is an instanced vertex attribute.
 
-
-
     glBindVertexArray(0);
-
 
     glEnable(GL_DEPTH_TEST);
     //gamma correction
@@ -134,24 +128,23 @@ int main()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     gCamera.Position = glm::vec3(0.0f, 0.0f, 15.0f);
-    int thetaSign_row1 = 0;
-    int thetaSign_row2 = 0;
-    //threshold for the acos result to change sign
-    GLfloat changeSignThreshold = 0.2f; 
 
-    // Game loop
     while (!glfwWindowShouldClose(window)) {
-        // Calculate how much time since last frame
         auto currentFrame = (float)glfwGetTime();
         gDeltaTime = currentFrame - gLastFrame;
         gLastFrame = currentFrame;
+
+        // generate random move for all instances
+        updateTranslation(translationRowCount, 0.05f * gDeltaTime, translations, translationsSpeed);
+
+        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec3) * translationSize, &translations[0]);
 
         // Handle user input
         processInput(window);
 
         // All the rendering starts from here
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // Set up view and projection matrix
@@ -160,10 +153,12 @@ int main()
                                                 (float)gScreenWidth / gScreenHeight, 0.1f, 100.0f);
         glm::mat4 model = glm::mat4(1.0f);
         
+        //draw skybox
         glDepthMask(GL_FALSE);
         skybox.Draw(skyboxShader,view,projection);
         glDepthMask(GL_TRUE);
 
+        //draw billboard instances
         snowShader.use();
         snowShader.setMat4("view", view);
         snowShader.setMat4("projection", projection);
@@ -176,7 +171,6 @@ int main()
 
         glBindVertexArray(planeVAO);
         glDrawArraysInstanced(GL_TRIANGLES, 0, 6, translationSize);
-        //glDrawArraysInstanced(GL_LINE_LOOP, 0, 6, 100);
 
         glBindVertexArray(0);
 
@@ -188,11 +182,11 @@ int main()
     // Properly de-allocate all resources once they've outlived their purpose
     glDeleteVertexArrays(1, &planeVAO);
     glDeleteBuffers(1, &planeVBO);
+    glDeleteBuffers(1, &instanceVBO);
 
     glfwTerminate();
     return 0;
 }
-
 
 GLFWwindow *init()
 {
